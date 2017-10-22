@@ -407,9 +407,6 @@ public class MaterialSearchView extends FrameLayout {
      * @param view The view to attach the keyboard to.
      */
     private void showKeyboard(View view) {
-        if(view.hasFocus()) {
-            view.clearFocus();
-        }
 
         view.requestFocus();
 
