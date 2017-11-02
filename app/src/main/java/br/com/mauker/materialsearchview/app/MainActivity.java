@@ -4,9 +4,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.speech.RecognizerIntent;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -15,6 +17,7 @@ import android.widget.Button;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import br.com.mauker.materialsearchview.MaterialSearchView;
 
@@ -37,6 +40,7 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
 
         searchView = (MaterialSearchView) findViewById(R.id.search_view);
+        searchView.setMultipleSelection(true);
 
         bt_clearHistory = (Button) findViewById(R.id.bt_clearHistory);
         bt_clearSuggestions = (Button) findViewById(R.id.bt_clearSuggestions);
@@ -54,67 +58,22 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        searchView.setSearchViewListener(new MaterialSearchView.SearchViewListener() {
-            @Override
-            public void onSearchViewOpened() {
-                // Do something once the view is open.
-            }
+        bt_clearHistory.setOnClickListener(v -> clearHistory());
+
+        bt_clearSuggestions.setOnClickListener(v -> clearSuggestions());
+
+        bt_clearAll.setOnClickListener(v -> clearAll());
+
+        searchView.setOnSuggestionSelectListener(new MaterialSearchView.OnSuggestionSelectListener() {
 
             @Override
-            public void onSearchViewClosed() {
-                // Do something once the view is closed.
-            }
-        });
-
-        searchView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                // Do something when the suggestion list is clicked.
-                String suggestion = searchView.getSuggestionAtPosition(position);
-
-                searchView.setQuery(suggestion, false);
-            }
-        });
-
-        bt_clearHistory.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                clearHistory();
-            }
-        });
-
-        bt_clearSuggestions.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                clearSuggestions();
-            }
-        });
-
-        bt_clearAll.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                clearAll();
+            public void onSelectSuggestion(@NonNull MaterialSearchView.Searchable suggestion) {
+                Log.d("Search", suggestion.toString());
             }
         });
 
 //        searchView.setTintAlpha(200);
         searchView.adjustTintAlpha(0.8f);
-
-        final Context context = this;
-        searchView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> adapterView, View view, int i, long l) {
-                Toast.makeText(context, "Long clicked position: " + i, Toast.LENGTH_SHORT).show();
-                return true;
-            }
-        });
-
-        searchView.setOnVoiceClickedListener(new MaterialSearchView.OnVoiceClickedListener() {
-            @Override
-            public void onVoiceClicked() {
-                Toast.makeText(context, "Voice clicked!", Toast.LENGTH_SHORT).show();
-            }
-        });
     }
 
     @Override
@@ -180,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
         searchView.activityResumed();
         String[] arr = getResources().getStringArray(R.array.suggestions);
 
-        searchView.addSuggestions(arr);
+        searchView.addSuggestions(new ArrayList<String>(Arrays.asList(arr)));
     }
 
     private void clearHistory() {

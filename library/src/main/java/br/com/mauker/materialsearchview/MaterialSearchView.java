@@ -17,6 +17,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.speech.RecognizerIntent;
+import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.AppCompatDelegate;
@@ -48,11 +49,6 @@ import br.com.mauker.materialsearchview.adapters.SearchAdapter;
 import br.com.mauker.materialsearchview.db.HistoryContract;
 import br.com.mauker.materialsearchview.utils.AnimationUtils;
 
-/**
- * Created by Mauker and Adam McNeilly on 30/03/2016. dd/MM/YY.
- * Maintained by Mauker, Adam McNeilly and our beautiful open source community <3
- * Based on stadiko on 6/8/15. https://github.com/krishnakapil/MaterialSeachView
- */
 @SuppressWarnings("unused")
 public class MaterialSearchView extends FrameLayout {
     //region Properties
@@ -107,6 +103,8 @@ public class MaterialSearchView extends FrameLayout {
      */
     private boolean mClearingFocus;
 
+    private boolean mMultiSelect;
+
     /**
      * Voice hint prompt text.
      */
@@ -150,6 +148,11 @@ public class MaterialSearchView extends FrameLayout {
     private ImageButton mClear;
 
     /**
+     * The ImageButton for select multi selected items
+     */
+    private ImageButton mSelect;
+
+    /**
      * The ListView for displaying suggestions based on the search.
      */
     private ListView mSuggestionsListView;
@@ -177,6 +180,14 @@ public class MaterialSearchView extends FrameLayout {
      * Listener for when the query text is submitted or changed.
      */
     private OnQueryTextListener mOnQueryTextListener;
+    /**
+     * Listener for when the query text is submitted or changed.
+     */
+    private OnSuggestionSelectListener mOnSuggestionSelectListener;
+    /**
+     * Listener for when the query text is submitted or changed.
+     */
+    private OnSuggestionsMultiSelectListener mOnSuggestionsMultiSelectListener;
 
     /**
      * Listener for when the search view opens and closes.
@@ -205,6 +216,7 @@ public class MaterialSearchView extends FrameLayout {
         this.mContext = context;
         this.mShouldAnimate = true;
         this.mShouldKeepHistory = true;
+        this.mMultiSelect = false;
 
         // Initialize view
         init();
@@ -230,6 +242,7 @@ public class MaterialSearchView extends FrameLayout {
         mSearchEditText = mRoot.findViewById(R.id.et_search);
         mVoice = mRoot.findViewById(R.id.action_voice);
         mClear = mRoot.findViewById(R.id.action_clear);
+        mSelect = mRoot.findViewById(R.id.action_select);
         mSuggestionsListView = mRoot.findViewById(R.id.suggestion_list);
 
         // Set click listeners
@@ -254,6 +267,15 @@ public class MaterialSearchView extends FrameLayout {
             }
         });
 
+        mSelect.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (mOnSuggestionsMultiSelectListener != null) {
+                    mOnSuggestionsMultiSelectListener.onMultiSelectSuggestions(getAdapter().getSelectedItems());
+                }
+            }
+        });
+
         mTintView.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -262,6 +284,8 @@ public class MaterialSearchView extends FrameLayout {
                 }
             }
         });
+
+
 
         // Show voice button
         displayVoiceButton(true);
@@ -272,6 +296,21 @@ public class MaterialSearchView extends FrameLayout {
         mAdapter = new SearchAdapter(mContext);
         mSuggestionsListView.setAdapter(mAdapter);
         mSuggestionsListView.setTextFilterEnabled(true);
+
+        mSuggestionsListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                Searchable searchable = (Searchable)adapterView.getItemAtPosition(i);
+                if (searchable != null) {
+                    if (mMultiSelect) {
+                        getAdapter().selectItemAtPosition(i);
+                        updateButtons();
+                    } else if (mOnSuggestionSelectListener != null) {
+                        mOnSuggestionSelectListener.onSelectSuggestion(searchable);
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -289,8 +328,14 @@ public class MaterialSearchView extends FrameLayout {
             }
 
             if (typedArray.hasValue(R.styleable.MaterialSearchView_android_textColor)) {
-                setTextColor(typedArray.getColor(R.styleable.MaterialSearchView_android_textColor,
-                        ContextCompat.getColor(mContext,R.color.black)));
+                int textColor = typedArray.getColor(R.styleable.MaterialSearchView_android_textColor,
+                        ContextCompat.getColor(mContext,R.color.black));
+                setTextColor(textColor);
+
+                mBack.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_IN);
+                mVoice.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_IN);
+                mClear.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_IN);
+                mSelect.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_IN);
             }
 
             if (typedArray.hasValue(R.styleable.MaterialSearchView_android_textColorHint)) {
@@ -326,7 +371,7 @@ public class MaterialSearchView extends FrameLayout {
             if (typedArray.hasValue(R.styleable.MaterialSearchView_searchSuggestionBackground)) {
                 setSuggestionBackground(typedArray.getResourceId(
                         R.styleable.MaterialSearchView_searchSuggestionBackground,
-                        R.color.search_layover_bg)
+                        R.color.white)
                 );
             }
 
@@ -378,10 +423,10 @@ public class MaterialSearchView extends FrameLayout {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                // When the text changes, filter
-                mAdapter.getFilter().filter(s.toString());
-                mAdapter.notifyDataSetChanged();
-                MaterialSearchView.this.onTextChanged(s);
+                if (!s.equals(mOldQuery)) {
+                    mAdapter.notifyDataSetChanged();
+                    MaterialSearchView.this.onTextChanged(s);
+                }
             }
 
             @Override
@@ -400,6 +445,16 @@ public class MaterialSearchView extends FrameLayout {
         });
     }
     //endregion
+
+    private void updateButtons() {
+        if (mMultiSelect && getAdapter().getSelectedItems().size() > 0) {
+            mSelect.setVisibility(VISIBLE);
+            mClear.setVisibility(GONE);
+        } else {
+            mSelect.setVisibility(GONE);
+            mClear.setVisibility(VISIBLE);
+        }
+    }
 
     //region Show Methods
     /**
@@ -431,7 +486,7 @@ public class MaterialSearchView extends FrameLayout {
      */
     private void displayVoiceButton(boolean display) {
         // Only display voice if we pass in true, and it's available
-        if(display && isVoiceAvailable()) {
+        if(display && isVoiceAvailable() && !mMultiSelect) {
             mVoice.setVisibility(View.VISIBLE);
         } else {
             mVoice.setVisibility(View.GONE);
@@ -465,18 +520,14 @@ public class MaterialSearchView extends FrameLayout {
         // Get focus
         mSearchEditText.setText("");
         mSearchEditText.requestFocus();
+        bringToFront();
 
-        if(mShouldAnimate) {
-            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                mRoot.setVisibility(View.VISIBLE);
-                AnimationUtils.circleRevealView(mSearchBar);
-            }
-            else {
-                AnimationUtils.fadeInView(mRoot);
-            }
-
-        } else {
+        if(mShouldAnimate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             mRoot.setVisibility(View.VISIBLE);
+            AnimationUtils.circleRevealView(mSearchBar);
+        }
+        else {
+            AnimationUtils.fadeInView(mRoot);
         }
 
         if(mSearchViewListener != null) {
@@ -520,28 +571,22 @@ public class MaterialSearchView extends FrameLayout {
         dismissSuggestions();
         clearFocus();
 
-        if (mShouldAnimate) {
-            final View v = mRoot;
+        final View v = mRoot;
 
-            AnimatorListenerAdapter listenerAdapter = new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    super.onAnimationEnd(animation);
-                    // After the animation is done. Hide the root view.
-                    v.setVisibility(View.GONE);
-                }
-            };
+        AnimatorListenerAdapter listenerAdapter = new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                super.onAnimationEnd(animation);
+                // After the animation is done. Hide the root view.
+                v.setVisibility(View.GONE);
+            }
+        };
 
-            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                AnimationUtils.circleHideView(mSearchBar, listenerAdapter);
-            }
-            else {
-                AnimationUtils.fadeOutView(mRoot);
-            }
+        if(mShouldAnimate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            AnimationUtils.circleHideView(mSearchBar, listenerAdapter);
         }
         else {
-            // Just hide the view.
-            mRoot.setVisibility(View.GONE);
+            AnimationUtils.fadeOutView(mRoot);
         }
 
 
@@ -571,6 +616,7 @@ public class MaterialSearchView extends FrameLayout {
             displayClearButton(false);
             displayVoiceButton(true);
         }
+        updateButtons();
 
         // If we have a query listener and the text has changed, call it.
         if(mOnQueryTextListener != null) {
@@ -634,26 +680,16 @@ public class MaterialSearchView extends FrameLayout {
         this.mOnQueryTextListener = mOnQueryTextListener;
     }
 
+    public void setOnSuggestionSelectListener(OnSuggestionSelectListener mOnSuggestionSelectListener) {
+        this.mOnSuggestionSelectListener = mOnSuggestionSelectListener;
+    }
+
+    public void setOnSuggestionsMultiSelectListener(OnSuggestionsMultiSelectListener mOnSuggestionsMultiSelectListener) {
+        this.mOnSuggestionsMultiSelectListener = mOnSuggestionsMultiSelectListener;
+    }
+
     public void setSearchViewListener(SearchViewListener mSearchViewListener) {
         this.mSearchViewListener = mSearchViewListener;
-    }
-
-    /**
-     * Sets an OnItemClickListener to the suggestion list.
-     *
-     * @param listener - The ItemClickListener.
-     */
-    public void setOnItemClickListener(AdapterView.OnItemClickListener listener) {
-        mSuggestionsListView.setOnItemClickListener(listener);
-    }
-
-    /**
-     * Sets an OnItemLongClickListener to the suggestion list.
-     *
-     * @param listener - The ItemLongClickListener.
-     */
-    public void setOnItemLongClickListener(AdapterView.OnItemLongClickListener listener) {
-        mSuggestionsListView.setOnItemLongClickListener(listener);
     }
     
     /**
@@ -692,6 +728,10 @@ public class MaterialSearchView extends FrameLayout {
         MAX_HISTORY = maxHistory;
     }
 
+    public void setMultiSelect(boolean mMultiSelect) {
+        this.mMultiSelect = mMultiSelect;
+    }
+
     /**
      * Set the query to search view. If submit is set to true, it'll submit the query.
      *
@@ -719,10 +759,10 @@ public class MaterialSearchView extends FrameLayout {
     public void setBackground(Drawable background) {
         // Method changed in jelly bean for setting background.
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-            mTintView.setBackground(background);
+            mSearchBar.setBackground(background);
         } else {
             //noinspection deprecation
-            mTintView.setBackgroundDrawable(background);
+            mSearchBar.setBackgroundDrawable(background);
         }
     }
 
@@ -733,59 +773,12 @@ public class MaterialSearchView extends FrameLayout {
      */
     @Override
     public void setBackgroundColor(int color) {
-        setTintColor(color);
+        mSearchBar.setBackgroundColor(color);
     }
 
     public void setSearchBarColor(int color) {
         // Set background color of search bar.
         mSearchEditText.setBackgroundColor(color);
-    }
-
-    /**
-     * Change the color of the background tint.
-     *
-     * @param color The new color.
-     */
-    private void setTintColor(int color) {
-        mTintView.setBackgroundColor(color);
-    }
-
-    /**
-     * Sets the alpha value of the background tint.
-     * @param alpha The alpha value, from 0 to 255.
-     */
-    public void setTintAlpha(int alpha) {
-        if (alpha < 0 || alpha > 255) return;
-
-        Drawable d = mTintView.getBackground();
-
-        if (d instanceof ColorDrawable) {
-            ColorDrawable cd = (ColorDrawable) d;
-            int color = cd.getColor();
-            int newColor = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
-
-            setTintColor(newColor);
-        }
-    }
-
-    /**
-     * Adjust the background tint alpha, based on a percentage.
-     *
-     * @param factor The factor of the alpha, from 0% to 100%.
-     */
-    public void adjustTintAlpha(float factor) {
-        if (factor < 0 || factor > 1.0) return;
-
-        Drawable d = mTintView.getBackground();
-
-        if (d instanceof ColorDrawable) {
-            ColorDrawable cd = (ColorDrawable) d;
-            int color = cd.getColor();
-
-            color = adjustAlpha(color,factor);
-
-            mTintView.setBackgroundColor(color);
-        }
     }
 
     /**
@@ -1010,22 +1003,17 @@ public class MaterialSearchView extends FrameLayout {
         }
     }
 
-    public void setSuggestions (Collection<? extends Searchable> suggestions) {
-        mAdapter.clear();
-        addSuggestions(suggestions);
-    }
-
-    public void setSuggestions (List<String> suggestions) {
+    public void setSuggestions (ArrayList<? extends Searchable> suggestions) {
         mAdapter.clear();
         addSuggestions(suggestions);
     }
 
 
-    public void addSuggestions (Collection<? extends Searchable> suggestions) {
+    public void addSuggestions (List<? extends Searchable> suggestions) {
         mAdapter.addAll(suggestions);
     }
 
-    public void addSuggestions(List<String> suggestions) {
+    public void addSuggestions(ArrayList<String> suggestions) {
         ArrayList<Searchable> list = new ArrayList<>();
         for (String suggestion : suggestions) {
             list.add(new Suggestion(suggestion));
@@ -1049,6 +1037,15 @@ public class MaterialSearchView extends FrameLayout {
     //endregion
 
     //region Interfaces
+
+    public interface OnSuggestionSelectListener {
+        void onSelectSuggestion(@NonNull Searchable suggestion);
+    }
+
+    public interface OnSuggestionsMultiSelectListener {
+        void onMultiSelectSuggestions(@NonNull List<Searchable> suggestion);
+    }
+
     /**
      * Interface that handles the submission and change of search queries.
      */
@@ -1096,7 +1093,7 @@ public class MaterialSearchView extends FrameLayout {
     }
 
     public interface Searchable {
-        boolean isHistory();
+        public String toString();
     }
 
     private class Suggestion implements Searchable {
@@ -1105,11 +1102,6 @@ public class MaterialSearchView extends FrameLayout {
 
         Suggestion(String suggestion) {
             this.suggestion = suggestion;
-        }
-
-        @Override
-        public boolean isHistory() {
-            return false;
         }
 
         @Override
