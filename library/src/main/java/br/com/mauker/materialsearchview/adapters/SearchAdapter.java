@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.content.ContextCompat;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -62,12 +63,15 @@ public class SearchAdapter extends BaseAdapter {
 
         if (item != null) {
             tv_content.setText(item.toString());
-            iv_icon.setImageResource(R.drawable.ic_action_search_white);
 
             if (mSelectedItems.contains(item)) {
                 convertView.setBackgroundColor(context.getResources().getColor(R.color.green_light));
+                iv_icon.setImageResource(R.drawable.ic_check_circle_black_24dp);
+                iv_icon.setColorFilter(ContextCompat.getColor(context, R.color.green), android.graphics.PorterDuff.Mode.SRC_IN);
             } else {
+                iv_icon.setImageResource(R.drawable.ic_action_search_white);
                 convertView.setBackgroundColor(Color.TRANSPARENT);
+                iv_icon.setColorFilter(ContextCompat.getColor(context, R.color.gray), android.graphics.PorterDuff.Mode.SRC_IN);
             }
         }
 

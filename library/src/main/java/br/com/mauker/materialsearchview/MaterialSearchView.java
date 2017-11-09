@@ -39,6 +39,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -116,6 +117,12 @@ public class MaterialSearchView extends FrameLayout {
      * The tint that appears over the search view.
      */
     private View mTintView;
+
+    //region UI Elements
+    /**
+     * The tint that appears over the search view.
+     */
+    private ProgressBar mProgressView;
 
     /**
      * The root of the search view.
@@ -237,6 +244,7 @@ public class MaterialSearchView extends FrameLayout {
         // Get items
         mRoot = findViewById(R.id.search_layout);
         mTintView = mRoot.findViewById(R.id.transparent_view);
+        mProgressView = mRoot.findViewById(R.id.progress_bar);
         mSearchBar = mRoot.findViewById(R.id.search_bar);
         mBack = mRoot.findViewById(R.id.action_back);
         mSearchEditText = mRoot.findViewById(R.id.et_search);
@@ -844,6 +852,14 @@ public class MaterialSearchView extends FrameLayout {
         mBack.setImageResource(resourceId);
     }
 
+    public void startLoading() {
+        mProgressView.setVisibility(VISIBLE);
+    }
+
+    public void endLoading() {
+        mProgressView.setVisibility(GONE);
+    }
+
     /**
      * Sets the background of the suggestions ListView.
      *
@@ -1031,6 +1047,7 @@ public class MaterialSearchView extends FrameLayout {
     }
 
     public synchronized void clearAll() {
+        mProgressView.setVisibility(GONE);
         clearSuggestions();
         clearHistory();
     }
