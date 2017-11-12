@@ -3,8 +3,10 @@ package br.com.mauker.materialsearchview;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -431,7 +433,7 @@ public class MaterialSearchView extends FrameLayout {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (!s.equals(mOldQuery)) {
+                if (!s.toString().equalsIgnoreCase(mOldQuery.toString())) {
                     mAdapter.notifyDataSetChanged();
                     MaterialSearchView.this.onTextChanged(s);
                 }
@@ -526,6 +528,7 @@ public class MaterialSearchView extends FrameLayout {
         }
 
         // Get focus
+        mOldQuery = "";
         mSearchEditText.setText("");
         mSearchEditText.requestFocus();
         bringToFront();
@@ -569,41 +572,66 @@ public class MaterialSearchView extends FrameLayout {
      * Closes the search view if necessary.
      */
     public void closeSearch() {
+        closeSearch(false);
+    }
+    public void closeSearch(boolean force) {
         // If we're already closed, just return.
         if(!mOpen) {
             return;
         }
 
-        // Clear text, values, and focus.
-        mSearchEditText.setText("");
-        dismissSuggestions();
-        clearFocus();
-
-        final View v = mRoot;
-
-        AnimatorListenerAdapter listenerAdapter = new AnimatorListenerAdapter() {
+        final Runnable closeAction = new Runnable() {
             @Override
-            public void onAnimationEnd(Animator animation) {
-                super.onAnimationEnd(animation);
-                // After the animation is done. Hide the root view.
-                v.setVisibility(View.GONE);
+            public void run() {
+                // Clear text, values, and focus.
+                mSearchEditText.setText("");
+                dismissSuggestions();
+                clearAll();
+                clearFocus();
+
+                final View v = mRoot;
+
+                AnimatorListenerAdapter listenerAdapter = new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        super.onAnimationEnd(animation);
+                        // After the animation is done. Hide the root view.
+                        v.setVisibility(View.GONE);
+                    }
+                };
+
+                if(mShouldAnimate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    AnimationUtils.circleHideView(mSearchBar, listenerAdapter);
+                }
+                else {
+                    AnimationUtils.fadeOutView(mRoot);
+                }
+
+
+                // Call listener if we have one
+                if(mSearchViewListener != null) {
+                    mSearchViewListener.onSearchViewClosed();
+                }
+
+                mOpen = false;
             }
         };
 
-        if(mShouldAnimate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            AnimationUtils.circleHideView(mSearchBar, listenerAdapter);
+        if (!force && getAdapter().getSelectedItems().size() > 0) {
+            AlertDialog.Builder alert = new AlertDialog.Builder(getContext());
+            alert.setTitle(R.string.back_close_title);
+            alert.setMessage(R.string.back_close_message);
+            alert.setPositiveButton(R.string.back_close_ok_button, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    closeAction.run();
+                }
+            });
+            alert.setNegativeButton(R.string.back_close_cancel_button, null);
+            alert.show();
+        } else {
+            closeAction.run();
         }
-        else {
-            AnimationUtils.fadeOutView(mRoot);
-        }
-
-
-        // Call listener if we have one
-        if(mSearchViewListener != null) {
-            mSearchViewListener.onSearchViewClosed();
-        }
-
-        mOpen = false;
     }
     //endregion
 
@@ -631,7 +659,7 @@ public class MaterialSearchView extends FrameLayout {
             mOnQueryTextListener.onQueryTextChange(newText.toString());
         }
 
-        mOldQuery = mCurrentQuery;
+        mOldQuery = String.valueOf(mCurrentQuery);
     }
 
     /**

@@ -7,4 +7,8 @@
     <string name="cd_voice_search">Voice search</string>
     <string name="cd_clear_button">Clear field</string>
     <string name="cd_suggestion_icon">List item icon</string>
+    <string name="back_close_title">Confirmação</string>
+    <string name="back_close_message">Você possui itens selecionados, que não foram adicionados.</string>
+    <string name="back_close_ok_button">OK</string>
+    <string name="back_close_cancel_button">Cancelar</string>
 </resources>
