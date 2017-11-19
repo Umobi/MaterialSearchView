@@ -433,7 +433,7 @@ public class MaterialSearchView extends FrameLayout {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (!s.toString().equalsIgnoreCase(mOldQuery.toString())) {
+                if (!TextUtils.equals(s, mOldQuery)) {
                     mAdapter.notifyDataSetChanged();
                     MaterialSearchView.this.onTextChanged(s);
                 }
